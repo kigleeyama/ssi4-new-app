@@ -476,7 +476,7 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     recordedChunks=[];timestamps=[];
     document.getElementById('stamp-log').innerHTML='';
     document.getElementById('stamp-count-display').textContent='0';
-    await requestWakeLock();
+    requestWakeLock();
     var mimeTypes=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
     var mimeType='';
     for(var i=0;i<mimeTypes.length;i++){if(MediaRecorder.isTypeSupported(mimeTypes[i])){mimeType=mimeTypes[i];break;}}
