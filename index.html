@@ -487,6 +487,7 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     document.getElementById('btn-stamp').disabled=false;document.getElementById('rec-indicator').classList.add('show');
     document.getElementById('stamp-counter').classList.add('show');document.getElementById('download-area').classList.remove('show');
     timerInterval=setInterval(updateTimer,250);
+   document.activeElement.blur();
   };
   window.stopRecording=async function(){
     if(!mediaRecorder||mediaRecorder.state==='inactive')return;
@@ -522,7 +523,7 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
   /* ── Keyboard ── */
   document.addEventListener('keydown',function(e){
     if(isRecording&&activeTab==='record'){
-      if(e.code==='Space')e.preventDefault();
+      if(e.key===' '||e.code==='Space')e.preventDefault();
       if(['Tab','Shift','Control','Alt','Meta'].includes(e.key))return;
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
       window.recordStamp();return;
