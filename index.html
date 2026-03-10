@@ -487,7 +487,7 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     document.getElementById('btn-stamp').disabled=false;document.getElementById('rec-indicator').classList.add('show');
     document.getElementById('stamp-counter').classList.add('show');document.getElementById('download-area').classList.remove('show');
     timerInterval=setInterval(updateTimer,250);
-   document.activeElement.blur();
+    document.getElementById('btn-stamp').focus();
   };
   window.stopRecording=async function(){
     if(!mediaRecorder||mediaRecorder.state==='inactive')return;
@@ -499,8 +499,13 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
   function updateTimer(){var elapsed=(performance.now()-recordingStartTime)/1000;document.getElementById('rec-timer').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(Math.floor(elapsed%60)).padStart(2,'0');}
 
   /* ── Stamp ── */
+  var lastStampTime=0;
   window.recordStamp=function(){
-    if(!isRecording)return;var ms=performance.now()-recordingStartTime;timestamps.push(Math.round(ms));
+    if(!isRecording)return;
+    var now=performance.now();
+    if(now-lastStampTime<150)return;
+    lastStampTime=now;
+    var ms=now-recordingStartTime;timestamps.push(Math.round(ms));
     var btn=document.getElementById('btn-stamp');btn.classList.add('flash');setTimeout(function(){btn.classList.remove('flash');},120);
     document.getElementById('stamp-count-display').textContent=timestamps.length;
     var log=document.getElementById('stamp-log');var entry=document.createElement('div');entry.className='stamp-entry';
@@ -534,7 +539,7 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     if(ctrl&&e.key==='s'){e.preventDefault();addStampAtCurrent();return;}
     if(ctrl&&!e.shiftKey&&e.key==='z'){e.preventDefault();performUndo();return;}
     if((ctrl&&e.shiftKey&&e.key==='z')||(ctrl&&e.key==='y')){e.preventDefault();performRedo();return;}
-    if(e.code==='Space'){e.preventDefault();togglePlayback();return;}
+    if(e.key===' '||e.code==='Space')e.preventDefault();togglePlayback();return;}
     if(e.code==='ArrowLeft'){e.preventDefault();window.skipTo(-5);return;}
     if(e.code==='ArrowRight'){e.preventDefault();window.skipTo(5);return;}
     if(ctrl&&(e.key==='='||e.key==='+')){e.preventDefault();var sel=document.getElementById('speed-select');if(sel.selectedIndex<sel.options.length-1){sel.selectedIndex++;setPlaybackSpeed(sel.value);}return;}
