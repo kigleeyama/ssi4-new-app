@@ -539,7 +539,7 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     if(ctrl&&e.key==='s'){e.preventDefault();addStampAtCurrent();return;}
     if(ctrl&&!e.shiftKey&&e.key==='z'){e.preventDefault();performUndo();return;}
     if((ctrl&&e.shiftKey&&e.key==='z')||(ctrl&&e.key==='y')){e.preventDefault();performRedo();return;}
-    if(e.key===' '||e.code==='Space')e.preventDefault();togglePlayback();return;}
+    if(e.key===' '||e.code==='Space'){e.preventDefault();togglePlayback();return;}
     if(e.code==='ArrowLeft'){e.preventDefault();window.skipTo(-5);return;}
     if(e.code==='ArrowRight'){e.preventDefault();window.skipTo(5);return;}
     if(ctrl&&(e.key==='='||e.key==='+')){e.preventDefault();var sel=document.getElementById('speed-select');if(sel.selectedIndex<sel.options.length-1){sel.selectedIndex++;setPlaybackSpeed(sel.value);}return;}
