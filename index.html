@@ -534,21 +534,33 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     analysisStamps=redoStack.pop();renderStampList();drawMarkers();toast('Redo');
   }
 
-  /* ── Keyboard (FIX: keydown+keyup both trigger stamp for Bluetooth clickers) ── */
+  /* ── Keyboard (Ultimate iOS Bluetooth & Spacebar Fix) ── */
+  
+  // ★安全装置：録画中にユーザーが画面を触っても、フォーカスを隠しInputに強制的に戻す
+  document.addEventListener('touchstart', function() {
+    if(isRecording && activeTab === 'record' && window.btInput) {
+      window.btInput.focus({preventScroll:true});
+    }
+  }, {passive: true});
+
   var lastKeyboardStampTime = 0;
   ['keydown', 'keyup'].forEach(function(eventName) {
     document.addEventListener(eventName, function(e){
+      
       /* --- Record mode: stamp on ANY key event (keydown OR keyup) --- */
       if(isRecording && activeTab === 'record'){
-        /* Always prevent Space scrolling on both keydown and keyup */
+        /* Spaceキーのスクロールを絶対に防ぐ */
         if(e.code === 'Space' || e.key === ' '){
           e.preventDefault();
         }
-        /* Skip modifier keys */
+        /* 修飾キーは無視 */
         if(['Tab','Shift','Control','Alt','Meta'].includes(e.key)) return;
-        /* Skip form elements */
-        if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
-        /* Stamp on either keydown or keyup, debounced at 300ms */
+        
+        /* ★修正箇所：INPUTタグでも「隠しInput（btInput）」なら特別に許可する（同士討ちを防ぐ） */
+        if(e.target.tagName === 'INPUT' && e.target !== window.btInput) return;
+        if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+        /* keydownでもkeyupでも、とにかく信号が来たらスタンプ！(0.3秒以内の暴発は防ぐ) */
         var now = performance.now();
         if(now - lastKeyboardStampTime > 300) {
           window.recordStamp();
