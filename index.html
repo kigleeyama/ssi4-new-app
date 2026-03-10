@@ -197,7 +197,6 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
 .splash-upload-box { border: 2px dashed var(--border-strong); border-radius: var(--radius); padding: 24px 12px; text-align: center; cursor: pointer; transition: all var(--transition); }
 .splash-upload-box:hover { border-color: var(--accent); background: var(--accent-light); }
 .splash-upload-box.dragover { border-color: var(--accent); background: var(--accent-light); }
-.splash-upload-box.has-file { border: 2px solid var(--accent); background: var(--accent-light); border-style: solid; }
 .splash-upload-box input[type="file"] { display: none; }
 .upload-label { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
 .upload-label strong { color: var(--accent); }
@@ -205,12 +204,25 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
 .file-bookmark.show { display: block; }
 .bookmark-tab {
   writing-mode: vertical-rl; text-orientation: mixed;
-  background: var(--red); color: white; border: none;
-  padding: 14px 8px; font-family: var(--font); font-size: 11px; font-weight: 600;
+  background: var(--accent); color: white; border: none;
+  padding: 14px 8px; font-family: var(--font); font-size: 12px; font-weight: 600;
   border-radius: 8px 0 0 8px; cursor: pointer; box-shadow: var(--shadow-md);
   transition: all var(--transition); letter-spacing: 0.04em;
 }
-.bookmark-tab:hover { background: #B91C1C; padding-right: 12px; }
+.bookmark-tab:hover { background: var(--accent-hover); padding-right: 12px; }
+.file-panel-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 250; display: none; align-items: center; justify-content: flex-end; }
+.file-panel-overlay.show { display: flex; }
+.file-panel {
+  width: 320px; max-width: 90vw; height: auto; max-height: 80vh;
+  background: var(--surface); border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: 24px;
+  transform: translateX(100%); transition: transform 250ms ease; overflow-y: auto;
+}
+.file-panel-overlay.show .file-panel { transform: translateX(0); }
+.panel-upload-box { border: 2px dashed var(--border-strong); border-radius: var(--radius); padding: 20px 12px; text-align: center; cursor: pointer; transition: all var(--transition); margin-bottom: 12px; }
+.panel-upload-box:hover { border-color: var(--accent); background: var(--accent-light); }
+.panel-upload-box.dragover { border-color: var(--accent); background: var(--accent-light); }
+.panel-upload-box input[type="file"] { display: none; }
 
 .analysis-workspace { display: none; flex: 1; flex-direction: column; overflow: hidden; gap: 6px; padding: 8px 0; }
 .analysis-workspace.show { display: flex; }
@@ -360,9 +372,19 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
         </div>
       </div>
     </div>
-
-    <div id="file-bookmark" class="file-bookmark">
-      <button class="bookmark-tab" onclick="startNewAnalysis()">New Analysis</button>
+    <div id="file-bookmark" class="file-bookmark"><button class="bookmark-tab" onclick="openFilePanel()">Files</button></div>
+    <div id="file-panel-overlay" class="file-panel-overlay" onclick="closePanelIfOutside(event)">
+      <div class="file-panel" id="file-panel">
+        <div class="card-title" style="margin-bottom:14px;">Load Files</div>
+        <div id="panel-video-box" class="panel-upload-box" onclick="document.getElementById('input-video-panel').click()">
+          <input type="file" id="input-video-panel" accept="video/*">
+          <div class="upload-label"><strong>Video</strong><br>.webm / .mp4</div>
+        </div>
+        <div id="panel-json-box" class="panel-upload-box" onclick="document.getElementById('input-json-panel').click()">
+          <input type="file" id="input-json-panel" accept=".json">
+          <div class="upload-label"><strong>JSON</strong> (optional)<br>timestamps.json</div>
+        </div>
+      </div>
     </div>
 
     <div id="analysis-workspace" class="analysis-workspace">
@@ -432,10 +454,6 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
   var currentStampIndex=-1, waveformFocused=false, zoomLevel=0, activeTab='record', resolvedDuration=0;
   var undoStack=[], redoStack=[];
 
-  // Default HTML for upload labels (used by reset)
-  var defaultVideoLabel='<strong>Video</strong> (required)<br>.webm / .mp4';
-  var defaultJSONLabel='<strong>JSON</strong> (optional)<br>timestamps.json';
-
   /* ── Tabs ── */
   document.querySelectorAll('.tab-btn').forEach(function(btn){
     btn.addEventListener('click',function(){
@@ -469,26 +487,25 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
   }
 
   /* ── Recording ── */
-window.startRecording=async function(){
-  if(!mediaStream){toast('Camera is not available');return;}
-  if(typeof MediaRecorder==='undefined'){toast('Recording not supported');return;}
-  recordedChunks=[];timestamps=[];
-  document.getElementById('stamp-log').innerHTML='';
-  document.getElementById('stamp-count-display').textContent='0';
-  requestWakeLock();
-  var mimeTypes=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
-  var mimeType='';
-  for(var i=0;i<mimeTypes.length;i++){if(MediaRecorder.isTypeSupported(mimeTypes[i])){mimeType=mimeTypes[i];break;}}
-  try{mediaRecorder=new MediaRecorder(mediaStream,mimeType?{mimeType:mimeType}:{});}catch(e){mediaRecorder=new MediaRecorder(mediaStream);}
-  mediaRecorder.ondataavailable=function(e){if(e.data.size>0)recordedChunks.push(e.data);};
-  mediaRecorder.onstop=function(){videoBlob=new Blob(recordedChunks,{type:mediaRecorder.mimeType||'video/webm'});document.getElementById('download-area').classList.add('show');toast('Recording complete');};
-  mediaRecorder.start(1000);recordingStartTime=performance.now();isRecording=true;
-  document.getElementById('btn-start').disabled=true;document.getElementById('btn-stop').disabled=false;
-  document.getElementById('btn-stamp').disabled=false;document.getElementById('rec-indicator').classList.add('show');
-  document.getElementById('stamp-counter').classList.add('show');document.getElementById('download-area').classList.remove('show');
-  timerInterval=setInterval(updateTimer,250);
-  document.getElementById('btn-stamp').focus();
-};
+  window.startRecording=async function(){
+    if(!mediaStream){toast('Camera is not available');return;}
+    if(typeof MediaRecorder==='undefined'){toast('Recording not supported');return;}
+    recordedChunks=[];timestamps=[];
+    document.getElementById('stamp-log').innerHTML='';
+    document.getElementById('stamp-count-display').textContent='0';
+    await requestWakeLock();
+    var mimeTypes=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
+    var mimeType='';
+    for(var i=0;i<mimeTypes.length;i++){if(MediaRecorder.isTypeSupported(mimeTypes[i])){mimeType=mimeTypes[i];break;}}
+    try{mediaRecorder=new MediaRecorder(mediaStream,mimeType?{mimeType:mimeType}:{});}catch(e){mediaRecorder=new MediaRecorder(mediaStream);}
+    mediaRecorder.ondataavailable=function(e){if(e.data.size>0)recordedChunks.push(e.data);};
+    mediaRecorder.onstop=function(){videoBlob=new Blob(recordedChunks,{type:mediaRecorder.mimeType||'video/webm'});document.getElementById('download-area').classList.add('show');toast('Recording complete');};
+    mediaRecorder.start(1000);recordingStartTime=performance.now();isRecording=true;
+    document.getElementById('btn-start').disabled=true;document.getElementById('btn-stop').disabled=false;
+    document.getElementById('btn-stamp').disabled=false;document.getElementById('rec-indicator').classList.add('show');
+    document.getElementById('stamp-counter').classList.add('show');document.getElementById('download-area').classList.remove('show');
+    timerInterval=setInterval(updateTimer,250);
+  };
   window.stopRecording=async function(){
     if(!mediaRecorder||mediaRecorder.state==='inactive')return;
     mediaRecorder.stop();isRecording=false;await releaseWakeLock();
@@ -499,76 +516,65 @@ window.startRecording=async function(){
   function updateTimer(){var elapsed=(performance.now()-recordingStartTime)/1000;document.getElementById('rec-timer').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(Math.floor(elapsed%60)).padStart(2,'0');}
 
   /* ── Stamp ── */
-  var lastStampTime=0;
   window.recordStamp=function(){
-    if(!isRecording)return;
-    var now=performance.now();
-    if(now-lastStampTime<150)return;
-    lastStampTime=now;
-    var ms=now-recordingStartTime;timestamps.push(Math.round(ms));
+    if(!isRecording)return;var ms=performance.now()-recordingStartTime;timestamps.push(Math.round(ms));
     var btn=document.getElementById('btn-stamp');btn.classList.add('flash');setTimeout(function(){btn.classList.remove('flash');},120);
     document.getElementById('stamp-count-display').textContent=timestamps.length;
     var log=document.getElementById('stamp-log');var entry=document.createElement('div');entry.className='stamp-entry';
     entry.innerHTML='<div class="dot"></div><span>#'+timestamps.length+'  '+formatMs(ms)+'</span>';log.prepend(entry);
   };
 
-  /* ── Undo/Redo ── */
+  /* ── Undo/Redo helpers ── */
   function saveState(){undoStack.push(JSON.parse(JSON.stringify(analysisStamps)));redoStack=[];}
   function performUndo(){
     if(!undoStack.length){toast('Nothing to undo');return;}
     redoStack.push(JSON.parse(JSON.stringify(analysisStamps)));
-    analysisStamps=undoStack.pop();renderStampList();drawMarkers();toast('Undo');
+    analysisStamps=undoStack.pop();
+    renderStampList();drawMarkers();toast('Undo');
   }
   function performRedo(){
     if(!redoStack.length){toast('Nothing to redo');return;}
     undoStack.push(JSON.parse(JSON.stringify(analysisStamps)));
-    analysisStamps=redoStack.pop();renderStampList();drawMarkers();toast('Redo');
+    analysisStamps=redoStack.pop();
+    renderStampList();drawMarkers();toast('Redo');
   }
 
-  /* ── Keyboard (iOS Bluetooth & Spacebar Fix) ── */
-  var lastKeyboardStampTime = 0;
-  ['keydown', 'keyup'].forEach(function(eventName) {
-    document.addEventListener(eventName, function(e){
-      if(isRecording && activeTab === 'record'){
-        if(eventName === 'keydown' && (e.code === 'Space' || e.key === ' ')){
-          e.preventDefault();
-          return;
-        }
-        if(eventName === 'keyup'){
-          if(['Tab','Shift','Control','Alt','Meta'].includes(e.key)) return;
-          if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
-          var now = performance.now();
-          if(now - lastKeyboardStampTime > 300) {
-            window.recordStamp();
-            lastKeyboardStampTime = now;
-          }
-        }
-        return;
-      }
-
-      if(eventName !== 'keydown') return;
-      if(activeTab !== 'analysis' || !analysisVideo) return;
+  /* ── Keyboard ── */
+  document.addEventListener('keydown',function(e){
+    if(isRecording&&activeTab==='record'){
+      if(e.code==='Space')e.preventDefault();
+      if(['Tab','Shift','Control','Alt','Meta'].includes(e.key))return;
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-      
-      var ctrl=e.ctrlKey||e.metaKey;
-      if(ctrl&&e.key==='s'){e.preventDefault();addStampAtCurrent();return;}
-      if(ctrl&&!e.shiftKey&&e.key==='z'){e.preventDefault();performUndo();return;}
-      if((ctrl&&e.shiftKey&&e.key==='z')||(ctrl&&e.key==='y')){e.preventDefault();performRedo();return;}
-      if(e.code==='Space' || e.key===' '){e.preventDefault();togglePlayback();return;}
-      if(e.code==='ArrowLeft'){e.preventDefault();window.skipTo(-5);return;}
-      if(e.code==='ArrowRight'){e.preventDefault();window.skipTo(5);return;}
-      if(ctrl&&(e.key==='='||e.key==='+')){e.preventDefault();var sel=document.getElementById('speed-select');if(sel.selectedIndex<sel.options.length-1){sel.selectedIndex++;setPlaybackSpeed(sel.value);}return;}
-      if(ctrl&&e.key==='-'){e.preventDefault();var sel2=document.getElementById('speed-select');if(sel2.selectedIndex>0){sel2.selectedIndex--;setPlaybackSpeed(sel2.value);}return;}
-      if(ctrl)return;
-      if(waveformFocused){
-        if(e.key==='='||e.key==='+'){e.preventDefault();zoomIn();return;}
-        if(e.key==='-'){e.preventDefault();zoomOut();return;}
-      }
-      if(!waveformFocused){
-        if(e.code==='ArrowDown'){e.preventDefault();navigateStamp(1);return;}
-        if(e.code==='ArrowUp'){e.preventDefault();navigateStamp(-1);return;}
-      }
-    });
+      window.recordStamp();return;
+    }
+    if(activeTab!=='analysis'||!analysisVideo)return;
+    if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
+
+    var ctrl=e.ctrlKey||e.metaKey;
+
+    // Ctrl+S: add stamp
+    if(ctrl&&e.key==='s'){e.preventDefault();addStampAtCurrent();return;}
+    // Ctrl+Z: undo
+    if(ctrl&&!e.shiftKey&&e.key==='z'){e.preventDefault();performUndo();return;}
+    // Ctrl+Shift+Z or Ctrl+Y: redo
+    if((ctrl&&e.shiftKey&&e.key==='z')||(ctrl&&e.key==='y')){e.preventDefault();performRedo();return;}
+
+    if(e.code==='Space'){e.preventDefault();togglePlayback();return;}
+    if(e.code==='ArrowLeft'){e.preventDefault();window.skipTo(-5);return;}
+    if(e.code==='ArrowRight'){e.preventDefault();window.skipTo(5);return;}
+
+    if(ctrl&&(e.key==='='||e.key==='+')){e.preventDefault();var sel=document.getElementById('speed-select');if(sel.selectedIndex<sel.options.length-1){sel.selectedIndex++;setPlaybackSpeed(sel.value);}return;}
+    if(ctrl&&e.key==='-'){e.preventDefault();var sel2=document.getElementById('speed-select');if(sel2.selectedIndex>0){sel2.selectedIndex--;setPlaybackSpeed(sel2.value);}return;}
+    if(ctrl)return;
+
+    if(waveformFocused){
+      if(e.key==='='||e.key==='+'){e.preventDefault();zoomIn();return;}
+      if(e.key==='-'){e.preventDefault();zoomOut();return;}
+    }
+    if(!waveformFocused){
+      if(e.code==='ArrowDown'){e.preventDefault();navigateStamp(1);return;}
+      if(e.code==='ArrowUp'){e.preventDefault();navigateStamp(-1);return;}
+    }
   });
 
   /* ── Download (with prompt) ── */
@@ -589,30 +595,20 @@ window.startRecording=async function(){
   };
 
   /* ══════ ANALYSIS ══════ */
-
-  /* ── Visual feedback helper ── */
-  function markUploadBox(boxId, fileName){
-    var box=document.getElementById(boxId);
-    if(!box)return;
-    box.classList.add('has-file');
-    var label=box.querySelector('.upload-label');
-    if(label) label.innerHTML='✓ '+fileName;
-  }
-
   function handleVideoFile(file){
-    if(!file)return;
-    uploadedVideo=file;
+    if(!file)return;uploadedVideo=file;
     toast('Video loaded: '+file.name);
-    // Visual feedback on the splash box
-    markUploadBox('splash-video-box', file.name);
-    // Delay confirm so DOM renders the blue border + filename first
-    setTimeout(function(){
-      if(window.confirm('Do you want to upload a timestamp JSON file? (Optional)')){
-        document.getElementById('input-json-splash').click();
-      } else {
-        tryInitAnalysis();
+    // Ask if user wants to also load JSON
+    if(window.confirm('Do you want to upload a timestamp JSON file? (Optional)')){
+      // Open the JSON file picker (whichever is visible)
+      var jsonInput=document.getElementById('input-json-splash');
+      if(document.getElementById('analysis-splash').classList.contains('hidden')){
+        jsonInput=document.getElementById('input-json-panel');
       }
-    },10);
+      jsonInput.click();
+    } else {
+      tryInitAnalysis();
+    }
   }
   function handleJSONFile(file){
     if(!file)return;
@@ -631,15 +627,14 @@ window.startRecording=async function(){
         }
         uploadedJSON=data;
         toast('JSON loaded: '+analysisStamps.length+' stamps');
-        markUploadBox('splash-json-box', file.name);
         tryInitAnalysis();
       }catch(err){toast('Failed to parse JSON');}
     };
     reader.readAsText(file);
   }
 
-  document.getElementById('input-video-splash').addEventListener('change',function(){handleVideoFile(this.files[0]);});
-  document.getElementById('input-json-splash').addEventListener('change',function(){handleJSONFile(this.files[0]);});
+  ['input-video-splash','input-video-panel'].forEach(function(id){document.getElementById(id).addEventListener('change',function(){handleVideoFile(this.files[0]);});});
+  ['input-json-splash','input-json-panel'].forEach(function(id){document.getElementById(id).addEventListener('change',function(){handleJSONFile(this.files[0]);});});
 
   function setupDropZone(el,onVideo,onJSON){
     ['dragenter','dragover'].forEach(function(evt){el.addEventListener(evt,function(e){e.preventDefault();el.classList.add('dragover');});});
@@ -648,6 +643,8 @@ window.startRecording=async function(){
   }
   setupDropZone(document.getElementById('splash-video-box'),handleVideoFile,function(){});
   setupDropZone(document.getElementById('splash-json-box'),function(){},handleJSONFile);
+  setupDropZone(document.getElementById('panel-video-box'),handleVideoFile,function(){});
+  setupDropZone(document.getElementById('panel-json-box'),function(){},handleJSONFile);
   var splashInner=document.querySelector('.splash-inner');
   if(splashInner)setupDropZone(splashInner,handleVideoFile,handleJSONFile);
 
@@ -661,40 +658,8 @@ window.startRecording=async function(){
     initAnalysisWorkspace();
   }
 
-  /* ── New Analysis (reset) ── */
-  window.startNewAnalysis=function(){
-    if(!window.confirm('Do you want to stop this analysis and start a new one?'))return;
-    // Destroy wavesurfer
-    if(wavesurfer){wavesurfer.destroy();wavesurfer=null;}
-    regionsPlugin=null;
-    // Revoke video URL
-    if(previousVideoURL){URL.revokeObjectURL(previousVideoURL);previousVideoURL=null;}
-    // Reset analysis video
-    var vid=document.getElementById('analysis-video');
-    if(vid){vid.pause();vid.removeAttribute('src');vid.load();}
-    analysisVideo=null;
-    // Reset state
-    uploadedVideo=null;uploadedJSON=null;analysisStamps=[];
-    undoStack=[];redoStack=[];currentStampIndex=-1;resolvedDuration=0;
-    // Reset file inputs
-    document.getElementById('input-video-splash').value='';
-    document.getElementById('input-json-splash').value='';
-    // Reset upload box visuals
-    var vBox=document.getElementById('splash-video-box');
-    vBox.classList.remove('has-file');
-    vBox.querySelector('.upload-label').innerHTML=defaultVideoLabel;
-    var jBox=document.getElementById('splash-json-box');
-    jBox.classList.remove('has-file');
-    jBox.querySelector('.upload-label').innerHTML=defaultJSONLabel;
-    // Hide workspace + bookmark, show splash
-    document.getElementById('analysis-workspace').classList.remove('show');
-    document.getElementById('file-bookmark').classList.remove('show');
-    document.getElementById('analysis-splash').classList.remove('hidden');
-    // Clear rendered lists
-    document.getElementById('marker-list').innerHTML='';
-    document.getElementById('stats-bar').innerHTML='';
-    toast('Ready for new analysis');
-  };
+  window.openFilePanel=function(){document.getElementById('file-panel-overlay').classList.add('show');};
+  window.closePanelIfOutside=function(e){if(e.target===document.getElementById('file-panel-overlay'))document.getElementById('file-panel-overlay').classList.remove('show');};
 
   /* ── Markers ── */
   function drawMarkers(){
@@ -718,9 +683,13 @@ window.startRecording=async function(){
         '<span class="type-tag '+(isAdded?'added':'recorded')+'">'+(isAdded?'added':'rec')+'</span>'+
         '<button class="btn-delete">Delete</button>';
       item.onclick=function(){seekTo(s.ms/1000);};
+      // Delete button
       item.querySelector('.btn-delete').onclick=function(e){
-        e.stopPropagation();saveState();analysisStamps.splice(i,1);
-        renderStampList();drawMarkers();toast('Stamp deleted');
+        e.stopPropagation();
+        saveState();
+        analysisStamps.splice(i,1);
+        renderStampList();drawMarkers();
+        toast('Stamp deleted');
       };
       markerList.appendChild(item);
     });
@@ -737,7 +706,8 @@ window.startRecording=async function(){
 
   /* ── Add stamp ── */
   function addStampAtCurrent(){
-    if(!analysisVideo)return;saveState();
+    if(!analysisVideo)return;
+    saveState();
     var ms=Math.round(analysisVideo.currentTime*1000);
     analysisStamps.push({ms:ms,type:'added'});
     analysisStamps.sort(function(a,b){return a.ms-b.ms;});
