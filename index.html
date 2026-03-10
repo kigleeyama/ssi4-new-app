@@ -469,26 +469,26 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
   }
 
   /* ── Recording ── */
-  window.startRecording=async function(){
-    if(document.activeElement) document.activeElement.blur(); 
-    if(!mediaStream){toast('Camera is not available');return;}
-    if(typeof MediaRecorder==='undefined'){toast('Recording not supported');return;}
-    recordedChunks=[];timestamps=[];
-    document.getElementById('stamp-log').innerHTML='';
-    document.getElementById('stamp-count-display').textContent='0';
-    requestWakeLock();
-    var mimeTypes=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
-    var mimeType='';
-    for(var i=0;i<mimeTypes.length;i++){if(MediaRecorder.isTypeSupported(mimeTypes[i])){mimeType=mimeTypes[i];break;}}
-    try{mediaRecorder=new MediaRecorder(mediaStream,mimeType?{mimeType:mimeType}:{});}catch(e){mediaRecorder=new MediaRecorder(mediaStream);}
-    mediaRecorder.ondataavailable=function(e){if(e.data.size>0)recordedChunks.push(e.data);};
-    mediaRecorder.onstop=function(){videoBlob=new Blob(recordedChunks,{type:mediaRecorder.mimeType||'video/webm'});document.getElementById('download-area').classList.add('show');toast('Recording complete');};
-    mediaRecorder.start(1000);recordingStartTime=performance.now();isRecording=true;
-    document.getElementById('btn-start').disabled=true;document.getElementById('btn-stop').disabled=false;
-    document.getElementById('btn-stamp').disabled=false;document.getElementById('rec-indicator').classList.add('show');
-    document.getElementById('stamp-counter').classList.add('show');document.getElementById('download-area').classList.remove('show');
-    timerInterval=setInterval(updateTimer,250);
-  };
+window.startRecording=async function(){
+  if(!mediaStream){toast('Camera is not available');return;}
+  if(typeof MediaRecorder==='undefined'){toast('Recording not supported');return;}
+  recordedChunks=[];timestamps=[];
+  document.getElementById('stamp-log').innerHTML='';
+  document.getElementById('stamp-count-display').textContent='0';
+  requestWakeLock();
+  var mimeTypes=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
+  var mimeType='';
+  for(var i=0;i<mimeTypes.length;i++){if(MediaRecorder.isTypeSupported(mimeTypes[i])){mimeType=mimeTypes[i];break;}}
+  try{mediaRecorder=new MediaRecorder(mediaStream,mimeType?{mimeType:mimeType}:{});}catch(e){mediaRecorder=new MediaRecorder(mediaStream);}
+  mediaRecorder.ondataavailable=function(e){if(e.data.size>0)recordedChunks.push(e.data);};
+  mediaRecorder.onstop=function(){videoBlob=new Blob(recordedChunks,{type:mediaRecorder.mimeType||'video/webm'});document.getElementById('download-area').classList.add('show');toast('Recording complete');};
+  mediaRecorder.start(1000);recordingStartTime=performance.now();isRecording=true;
+  document.getElementById('btn-start').disabled=true;document.getElementById('btn-stop').disabled=false;
+  document.getElementById('btn-stamp').disabled=false;document.getElementById('rec-indicator').classList.add('show');
+  document.getElementById('stamp-counter').classList.add('show');document.getElementById('download-area').classList.remove('show');
+  timerInterval=setInterval(updateTimer,250);
+  document.getElementById('btn-stamp').focus();
+};
   window.stopRecording=async function(){
     if(!mediaRecorder||mediaRecorder.state==='inactive')return;
     mediaRecorder.stop();isRecording=false;await releaseWakeLock();
