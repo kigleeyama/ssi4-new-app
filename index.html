@@ -477,14 +477,22 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     if(mediaStream){mediaStream.getTracks().forEach(function(t){t.stop();});mediaStream=null;document.getElementById('preview').srcObject=null;}
   }
 
-  /* ── Recording (FIX: removed blur(), added btInput.focus()) ── */
+  /* ── Recording (Ultimate Fix: Focus MUST be before await) ── */
   window.startRecording=async function(){
+    // ★罠②の解決：iOS Safariの絶対ルール。focus()は「await」より前に実行しないと無視される！
+    if(document.activeElement && document.activeElement !== btInput) {
+      document.activeElement.blur();
+    }
+    btInput.focus({preventScroll:true}); // ← 録画ボタンを押した瞬間に最優先でフォーカスを当てる！
+
     if(!mediaStream){toast('Camera is not available');return;}
     if(typeof MediaRecorder==='undefined'){toast('Recording not supported');return;}
     recordedChunks=[];timestamps=[];
     document.getElementById('stamp-log').innerHTML='';
     document.getElementById('stamp-count-display').textContent='0';
-    requestWakeLock();
+    
+    await requestWakeLock(); // ← ここで待機が発生するため、この前にfocus()が必須だった
+    
     var mimeTypes=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
     var mimeType='';
     for(var i=0;i<mimeTypes.length;i++){if(MediaRecorder.isTypeSupported(mimeTypes[i])){mimeType=mimeTypes[i];break;}}
@@ -496,7 +504,6 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     document.getElementById('btn-stamp').disabled=false;document.getElementById('rec-indicator').classList.add('show');
     document.getElementById('stamp-counter').classList.add('show');document.getElementById('download-area').classList.remove('show');
     timerInterval=setInterval(updateTimer,250);
-    btInput.focus({preventScroll:true});
   };
   window.stopRecording=async function(){
     if(!mediaRecorder||mediaRecorder.state==='inactive')return;
@@ -538,8 +545,8 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
   
   // ★安全装置：録画中にユーザーが画面を触っても、フォーカスを隠しInputに強制的に戻す
   document.addEventListener('touchstart', function() {
-    if(isRecording && activeTab === 'record' && window.btInput) {
-      window.btInput.focus({preventScroll:true});
+    if(isRecording && activeTab === 'record') {
+      btInput.focus({preventScroll:true}); // window. を外して正しく参照
     }
   }, {passive: true});
 
@@ -556,8 +563,8 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
         /* 修飾キーは無視 */
         if(['Tab','Shift','Control','Alt','Meta'].includes(e.key)) return;
         
-        /* ★修正箇所：INPUTタグでも「隠しInput（btInput）」なら特別に許可する（同士討ちを防ぐ） */
-        if(e.target.tagName === 'INPUT' && e.target !== window.btInput) return;
+        /* ★罠①の解決：window.btInput ではなく btInput を参照し、同士討ちを完全に防ぐ */
+        if(e.target.tagName === 'INPUT' && e.target !== btInput) return;
         if(e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
         /* keydownでもkeyupでも、とにかく信号が来たらスタンプ！(0.3秒以内の暴発は防ぐ) */
