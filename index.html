@@ -470,12 +470,13 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
 
   /* ── Recording ── */
   window.startRecording=async function(){
+    if(document.activeElement) document.activeElement.blur(); 
     if(!mediaStream){toast('Camera is not available');return;}
     if(typeof MediaRecorder==='undefined'){toast('Recording not supported');return;}
     recordedChunks=[];timestamps=[];
     document.getElementById('stamp-log').innerHTML='';
     document.getElementById('stamp-count-display').textContent='0';
-    requestWakeLock();
+    await requestWakeLock();
     var mimeTypes=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
     var mimeType='';
     for(var i=0;i<mimeTypes.length;i++){if(MediaRecorder.isTypeSupported(mimeTypes[i])){mimeType=mimeTypes[i];break;}}
@@ -487,7 +488,6 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     document.getElementById('btn-stamp').disabled=false;document.getElementById('rec-indicator').classList.add('show');
     document.getElementById('stamp-counter').classList.add('show');document.getElementById('download-area').classList.remove('show');
     timerInterval=setInterval(updateTimer,250);
-    document.getElementById('btn-stamp').focus();
   };
   window.stopRecording=async function(){
     if(!mediaRecorder||mediaRecorder.state==='inactive')return;
@@ -525,34 +525,50 @@ kbd { display: inline-block; padding: 1px 5px; background: var(--surface-alt); b
     analysisStamps=redoStack.pop();renderStampList();drawMarkers();toast('Redo');
   }
 
-  /* ── Keyboard ── */
-  document.addEventListener('keydown',function(e){
-    if(isRecording&&activeTab==='record'){
-      if(e.key===' '||e.code==='Space')e.preventDefault();
-      if(['Tab','Shift','Control','Alt','Meta'].includes(e.key))return;
+  /* ── Keyboard (iOS Bluetooth & Spacebar Fix) ── */
+  var lastKeyboardStampTime = 0;
+  ['keydown', 'keyup'].forEach(function(eventName) {
+    document.addEventListener(eventName, function(e){
+      if(isRecording && activeTab === 'record'){
+        if(eventName === 'keydown' && (e.code === 'Space' || e.key === ' ')){
+          e.preventDefault();
+          return;
+        }
+        if(eventName === 'keyup'){
+          if(['Tab','Shift','Control','Alt','Meta'].includes(e.key)) return;
+          if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT') return;
+          var now = performance.now();
+          if(now - lastKeyboardStampTime > 300) {
+            window.recordStamp();
+            lastKeyboardStampTime = now;
+          }
+        }
+        return;
+      }
+
+      if(eventName !== 'keydown') return;
+      if(activeTab !== 'analysis' || !analysisVideo) return;
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-      window.recordStamp();return;
-    }
-    if(activeTab!=='analysis'||!analysisVideo)return;
-    if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-    var ctrl=e.ctrlKey||e.metaKey;
-    if(ctrl&&e.key==='s'){e.preventDefault();addStampAtCurrent();return;}
-    if(ctrl&&!e.shiftKey&&e.key==='z'){e.preventDefault();performUndo();return;}
-    if((ctrl&&e.shiftKey&&e.key==='z')||(ctrl&&e.key==='y')){e.preventDefault();performRedo();return;}
-    if(e.key===' '||e.code==='Space'){e.preventDefault();togglePlayback();return;}
-    if(e.code==='ArrowLeft'){e.preventDefault();window.skipTo(-5);return;}
-    if(e.code==='ArrowRight'){e.preventDefault();window.skipTo(5);return;}
-    if(ctrl&&(e.key==='='||e.key==='+')){e.preventDefault();var sel=document.getElementById('speed-select');if(sel.selectedIndex<sel.options.length-1){sel.selectedIndex++;setPlaybackSpeed(sel.value);}return;}
-    if(ctrl&&e.key==='-'){e.preventDefault();var sel2=document.getElementById('speed-select');if(sel2.selectedIndex>0){sel2.selectedIndex--;setPlaybackSpeed(sel2.value);}return;}
-    if(ctrl)return;
-    if(waveformFocused){
-      if(e.key==='='||e.key==='+'){e.preventDefault();zoomIn();return;}
-      if(e.key==='-'){e.preventDefault();zoomOut();return;}
-    }
-    if(!waveformFocused){
-      if(e.code==='ArrowDown'){e.preventDefault();navigateStamp(1);return;}
-      if(e.code==='ArrowUp'){e.preventDefault();navigateStamp(-1);return;}
-    }
+      
+      var ctrl=e.ctrlKey||e.metaKey;
+      if(ctrl&&e.key==='s'){e.preventDefault();addStampAtCurrent();return;}
+      if(ctrl&&!e.shiftKey&&e.key==='z'){e.preventDefault();performUndo();return;}
+      if((ctrl&&e.shiftKey&&e.key==='z')||(ctrl&&e.key==='y')){e.preventDefault();performRedo();return;}
+      if(e.code==='Space' || e.key===' '){e.preventDefault();togglePlayback();return;}
+      if(e.code==='ArrowLeft'){e.preventDefault();window.skipTo(-5);return;}
+      if(e.code==='ArrowRight'){e.preventDefault();window.skipTo(5);return;}
+      if(ctrl&&(e.key==='='||e.key==='+')){e.preventDefault();var sel=document.getElementById('speed-select');if(sel.selectedIndex<sel.options.length-1){sel.selectedIndex++;setPlaybackSpeed(sel.value);}return;}
+      if(ctrl&&e.key==='-'){e.preventDefault();var sel2=document.getElementById('speed-select');if(sel2.selectedIndex>0){sel2.selectedIndex--;setPlaybackSpeed(sel2.value);}return;}
+      if(ctrl)return;
+      if(waveformFocused){
+        if(e.key==='='||e.key==='+'){e.preventDefault();zoomIn();return;}
+        if(e.key==='-'){e.preventDefault();zoomOut();return;}
+      }
+      if(!waveformFocused){
+        if(e.code==='ArrowDown'){e.preventDefault();navigateStamp(1);return;}
+        if(e.code==='ArrowUp'){e.preventDefault();navigateStamp(-1);return;}
+      }
+    });
   });
 
   /* ── Download (with prompt) ── */
